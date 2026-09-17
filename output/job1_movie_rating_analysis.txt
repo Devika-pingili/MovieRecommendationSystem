@@ -1,3 +1,4 @@
+movieId	ratingCount	ratingSum
 1	68997	268911.5
 10	32474	111316.0
 100	4154	13368.5

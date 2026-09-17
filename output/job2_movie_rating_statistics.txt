@@ -1,3 +1,4 @@
+movieId	ratingCount	averageRating
 100044	489	4.17
 100556	1124	4.03
 101962	1192	4.0
