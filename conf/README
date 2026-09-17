@@ -1,0 +1,14 @@
+# Hadoop Configuration
+
+This project uses the Hadoop configuration already installed in WSL.
+
+The project does not include Hadoop configuration files because the
+configuration is maintained by the local Hadoop installation.
+
+Required components:
+
+- Java
+- Hadoop
+- HDFS
+- YARN
+- MapReduce
