@@ -31,7 +31,6 @@ output_recommendations/
 *.crc
 
 # Dataset files - do not upload large datasets
-*.csv
 *.zip
 *.tar
 *.gz
