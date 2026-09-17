@@ -1,21 +1,19 @@
 # Movie Recommendation System using Hadoop MapReduce
 
-## Overview
+This project implements a Movie Recommendation System using **Apache Hadoop MapReduce**.
 
-This project implements a Movie Recommendation System using Apache Hadoop MapReduce.
+The system processes the **MovieLens 32M ratings dataset** and identifies movies that have a high average rating and a sufficient number of user ratings.
 
-The system processes the MovieLens 32M ratings dataset and identifies movies that have high average ratings and a sufficient number of user ratings.
-
-The project contains exactly two MapReduce jobs:
+The project contains exactly **two MapReduce jobs**:
 
 1. `MovieRatingAnalysis`
 2. `MovieRatingStatistics`
 
-The project is designed to run on a single computer using Hadoop inside WSL.
+The project is designed to run on a **single computer using Apache Hadoop inside WSL Ubuntu**.
 
 ---
 
-## Project Structure
+# Project Structure
 
 ```text
 MovieRecommendationSystem/
@@ -25,10 +23,14 @@ MovieRecommendationSystem/
 │   └── MovieRatingStatistics.java
 │
 ├── data/
-│   └── README.md
+│   ├── README.md
+│   ├── links.csv
+│   ├── movies.csv
+│   └── tags.csv
 │
 ├── output/
-│   └── README.md
+│   ├── job1_movie_rating_analysis.txt
+│   └── job2_movie_rating_statistics.txt
 │
 ├── conf/
 │   └── README.md
@@ -41,6 +43,10 @@ MovieRecommendationSystem/
 └── .gitignore
 ```
 
+The `output/` folder contains sample results generated from the Hadoop MapReduce jobs.
+
+The complete `ratings.csv` dataset is not stored in the repository because of its large file size.
+
 ---
 
 # Technologies Used
@@ -51,21 +57,29 @@ MovieRecommendationSystem/
 * Hadoop MapReduce
 * YARN
 * WSL Ubuntu
-* Visual Studio Code
 
 ---
 
 # Dataset
 
-The project uses the MovieLens 32M dataset.
+The project uses the **MovieLens 32M dataset**.
 
-The main file required by the project is:
+The dataset contains four CSV files:
+
+```text
+ratings.csv
+movies.csv
+tags.csv
+links.csv
+```
+
+The main file used by the MapReduce jobs is:
 
 ```text
 ratings.csv
 ```
 
-The file contains four columns:
+The `ratings.csv` file contains:
 
 ```text
 userId
@@ -82,39 +96,58 @@ Example:
 2,296,4.0,1147869191
 ```
 
-The complete dataset is not stored in this repository because of its large file size.
+### Columns Used
+
+The MapReduce processing uses only:
+
+```text
+movieId
+rating
+```
+
+The other columns are not required for the two MapReduce jobs.
+
+Detailed dataset information is available in:
+
+```text
+data/README.md
+```
 
 ---
 
 # System Workflow
 
 ```text
-                   ratings.csv
-                       |
-                       v
-        +-----------------------------+
-        |     MovieRatingAnalysis     |
-        |            JOB 1            |
-        +-----------------------------+
-                       |
-                       v
-             movieId -> total,count
-                       |
-                       v
-        +-----------------------------+
-        |    MovieRatingStatistics    |
-        |            JOB 2            |
-        +-----------------------------+
-                       |
-                       v
-                 Average Rating
-                       |
-                       v
-              Recommendation Filter
-                       |
-                       v
+                     ratings.csv
+                         |
+                         v
+          +-------------------------------+
+          |      MovieRatingAnalysis       |
+          |             JOB 1              |
+          +-------------------------------+
+                         |
+                         v
+              movieId + ratingCount
+                   + ratingSum
+                         |
+                         v
+          +-------------------------------+
+          |     MovieRatingStatistics      |
+          |             JOB 2              |
+          +-------------------------------+
+                         |
+                         v
+                  Average Rating
+                         |
+                         v
+                Recommendation
+                    Filtering
+                         |
+                         v
               Recommended Movies
 ```
+
+The two jobs are executed sequentially.
 
 ---
 
@@ -122,53 +155,98 @@ The complete dataset is not stored in this repository because of its large file 
 
 ## Purpose
 
-The first MapReduce job groups ratings according to `movieId`.
+`MovieRatingAnalysis` processes the `ratings.csv` file and groups ratings according to `movieId`.
 
-For every movie, it calculates:
+For each movie, it calculates:
 
-* Total rating
 * Number of ratings
+* Sum of all ratings
+
+---
 
 ## Mapper
 
-The Mapper reads records from `ratings.csv`.
+The Mapper reads each record from `ratings.csv`.
 
-Input:
+Input format:
 
 ```text
 userId,movieId,rating,timestamp
 ```
 
-The Mapper emits:
+The Mapper extracts:
 
 ```text
-movieId -> rating,1
+movieId
+rating
+```
+
+and emits:
+
+```text
+movieId -> rating
 ```
 
 Example:
 
 ```text
-296 -> 5.0,1
-296 -> 4.0,1
-296 -> 5.0,1
+296 -> 5.0
+296 -> 4.0
+296 -> 5.0
 ```
+
+---
 
 ## Reducer
 
-The Reducer combines all ratings belonging to the same movie.
+The Reducer receives all ratings belonging to the same movie.
+
+It calculates:
+
+```text
+Rating Count = Number of ratings
+Rating Sum   = Sum of all ratings
+```
 
 Example:
 
 ```text
-296 -> 14.0,3
+296 -> 14.0, 3
 ```
 
 This means:
 
 ```text
-Movie ID       = 296
-Total Rating   = 14.0
-Rating Count   = 3
+Movie ID      = 296
+Rating Count  = 3
+Rating Sum    = 14.0
+```
+
+---
+
+## Job 1 Output
+
+The output format is:
+
+```text
+movieId    ratingCount    ratingSum
+```
+
+Example from the actual execution:
+
+```text
+movieId    ratingCount    ratingSum
+1          68997         268911.5
+10         32474         111316.0
+100        4154          13368.5
+1000       233           722.5
+100001     6             18.5
+```
+
+The complete sample output is available in:
+
+```text
+output/job1_movie_rating_analysis.txt
 ```
 
 ---
@@ -177,73 +255,109 @@ Rating Count   = 3
 
 ## Purpose
 
-The second MapReduce job calculates the average rating for every movie.
+`MovieRatingStatistics` takes the output of Job 1 and calculates the average rating for each movie.
 
-Formula:
+The input comes from:
 
 ```text
-Average Rating = Total Rating / Number of Ratings
+output_analysis
 ```
 
-The job then filters movies based on the recommendation criteria.
+generated by Job 1.
 
-## Recommendation Criteria
+---
 
-A movie is considered recommended when:
+## Average Rating Calculation
+
+The average rating is calculated using:
 
 ```text
-Average Rating >= 4.0
+Average Rating = Rating Sum / Rating Count
+```
+
+For example, for movie `100044`:
+
+```text
+Rating Count = 489
+Rating Sum   = 2041.0
+
+Average Rating = 2041.0 / 489
+               = 4.17
+```
+
+---
+
+# Recommendation Criteria
+
+A movie is included in the final output only when both conditions are satisfied:
+
+```text
+Rating Count >= 100
 ```
 
 and:
 
 ```text
-Number of Ratings >= 100
+Average Rating >= 4.0
 ```
 
-The rating-count condition prevents movies with only a small number of ratings from being considered strong recommendations.
+The rating-count condition helps prevent movies with only a small number of ratings from being included.
 
 ---
 
-# Final Output
+# Job 2 Output
 
-The final output has the following format:
-
-```text
-movieId    averageRating    ratingCount
-```
-
-Example:
+The final output format is:
 
 ```text
-318    4.43    982
-296    4.20    1460
-858    4.32    875
+movieId    ratingCount    averageRating
 ```
 
-These movies satisfy the recommendation criteria.
+Example from the actual execution:
+
+```text
+movieId    ratingCount    averageRating
+100044     489            4.17
+100556     1124           4.03
+101962     1192           4.0
+102666     736            4.05
+1041       5851           4.05
+105250     395            4.23
+1089       43730          4.09
+109487     37157          4.13
+1136       46508          4.14
+1147       3998           4.13
+```
+
+The complete sample output is available in:
+
+```text
+output/job2_movie_rating_statistics.txt
+```
+
+The final output contains **movie IDs**, not movie titles, because the current two-job implementation does not perform a join with `movies.csv`.
 
 ---
 
 # Hadoop Setup
 
-The project is designed to run with Hadoop installed inside WSL Ubuntu.
+The project is designed to run with Hadoop installed inside **WSL Ubuntu**.
 
 Before executing the MapReduce jobs, make sure HDFS and YARN are running.
 
-Start HDFS:
+## Start HDFS
 
 ```bash
 start-dfs.sh
 ```
 
-Start YARN:
+## Start YARN
 
 ```bash
 start-yarn.sh
 ```
 
-Check Hadoop processes:
+## Check Hadoop Processes
 
 ```bash
 jps
@@ -257,9 +371,10 @@ DataNode
 SecondaryNameNode
 ResourceManager
 NodeManager
+Jps
 ```
 
-Check HDFS:
+## Check HDFS
 
 ```bash
 hdfs dfsadmin -report
@@ -275,19 +390,19 @@ Create the HDFS directory:
 hdfs dfs -mkdir -p /user/pingili_devika/movielens
 ```
 
-Upload `ratings.csv`:
+Upload the `ratings.csv` file:
 
 ```bash
 hdfs dfs -put ratings.csv /user/pingili_devika/movielens/
 ```
 
-Check:
+Check the uploaded files:
 
 ```bash
 hdfs dfs -ls /user/pingili_devika/movielens
 ```
 
-The following file should be present:
+The required file should be present:
 
 ```text
 ratings.csv
@@ -302,7 +417,7 @@ If the file has already been uploaded, this step does not need to be repeated.
 Move into the project directory:
 
 ```bash
-cd ~/hadoop-project/MovieRecommendationSystem
+cd /mnt/d/MovieRecommendationSystem
 ```
 
 Make the build script executable:
@@ -311,19 +426,20 @@ Make the build script executable:
 chmod +x scripts/build.sh
 ```
 
-Run:
+Run the build script:
 
 ```bash
 ./scripts/build.sh
 ```
 
-The script:
+The build script:
 
 1. Creates the build directory.
-2. Compiles both Java files.
-3. Creates the Hadoop JAR file.
+2. Compiles `MovieRatingAnalysis.java`.
+3. Compiles `MovieRatingStatistics.java`.
+4. Creates the Hadoop JAR file.
 
-Generated file:
+Generated JAR:
 
 ```text
 MovieRecommendationSystem.jar
@@ -345,25 +461,35 @@ Run:
 ./scripts/run.sh
 ```
 
-The script automatically executes:
+The complete processing flow is:
 
 ```text
-Job 1
-  ↓
+ratings.csv
+     |
+     v
+Job 1: MovieRatingAnalysis
+     |
+     v
 output_analysis
-  ↓
-Job 2
-  ↓
-output_recommendations
+     |
+     v
+Job 2: MovieRatingStatistics
+     |
+     v
+output_stats
 ```
 
-It also removes old Hadoop output directories before running the jobs again.
+The final Hadoop output is stored in:
+
+```text
+/user/pingili_devika/movielens/output_stats
+```
 
 ---
 
 # Run Job 1 Manually
 
-Remove old Job 1 output:
+Remove the previous Job 1 output if it exists:
 
 ```bash
 hdfs dfs -rm -r -f /user/pingili_devika/movielens/output_analysis
@@ -385,21 +511,29 @@ hdfs dfs -cat \
 /user/pingili_devika/movielens/output_analysis/part-r-00000
 ```
 
-Display only the first 20 records:
+Display the first 20 records:
 
 ```bash
 hdfs dfs -cat \
 /user/pingili_devika/movielens/output_analysis/part-r-00000 | head -20
 ```
 
+Job 1 output format:
+
+```text
+movieId    ratingCount    ratingSum
+```
+
 ---
 
 # Run Job 2 Manually
 
-Remove old Job 2 output:
+Job 2 uses the output generated by Job 1.
+
+Remove the previous Job 2 output if it exists:
 
 ```bash
-hdfs dfs -rm -r -f /user/pingili_devika/movielens/output_recommendations
+hdfs dfs -rm -r -f /user/pingili_devika/movielens/output_stats
 ```
 
 Run Job 2:
@@ -408,146 +542,64 @@ Run Job 2:
 hadoop jar MovieRecommendationSystem.jar \
 MovieRatingStatistics \
 /user/pingili_devika/movielens/output_analysis \
-/user/pingili_devika/movielens/output_recommendations
+/user/pingili_devika/movielens/output_stats
 ```
 
-View final recommendations:
+View the final output:
 
 ```bash
 hdfs dfs -cat \
-/user/pingili_devika/movielens/output_recommendations/part-r-00000
+/user/pingili_devika/movielens/output_stats/part-r-00000
 ```
 
-Display the first 30 recommendations:
+Display the first 20 recommendations:
 
 ```bash
 hdfs dfs -cat \
-/user/pingili_devika/movielens/output_recommendations/part-r-00000 | head -30
+/user/pingili_devika/movielens/output_stats/part-r-00000 | head -20
 ```
 
----
-
-# VS Code Execution
-
-The Java files can be developed using Visual Studio Code.
-
-The recommended setup is:
+Job 2 output format:
 
 ```text
-Windows
-   |
-   v
-Visual Studio Code
-   |
-   v
-WSL Ubuntu
-   |
-   v
-Apache Hadoop
-   |
-   +---- HDFS
-   |
-   +---- YARN
-   |
-   +---- MapReduce
+movieId    ratingCount    averageRating
 ```
 
-Open WSL:
+---
 
-```bash
-wsl
-```
+# Output Files
 
-Go to the project:
+The repository contains sample outputs generated from the MapReduce execution.
 
-```bash
-cd ~/hadoop-project/MovieRecommendationSystem
-```
-
-Open the project in VS Code:
-
-```bash
-code .
-```
-
-In VS Code, open:
+## Job 1 Output
 
 ```text
-Terminal -> New Terminal
+output/job1_movie_rating_analysis.txt
 ```
 
-Make sure the terminal is a WSL/Ubuntu terminal.
+Columns:
 
-Check Java:
-
-```bash
-java -version
+```text
+movieId
+ratingCount
+ratingSum
 ```
 
-Check Hadoop:
+## Job 2 Output
 
-```bash
-hadoop version
+```text
+output/job2_movie_rating_statistics.txt
 ```
 
-Then build:
+Columns:
 
-```bash
-./scripts/build.sh
+```text
+movieId
+ratingCount
+averageRating
 ```
 
-Run:
-
-```bash
-./scripts/run.sh
-```
-
----
-
-# WSL vs VS Code
-
-There is no separate Java code for VS Code and WSL.
-
-VS Code is used for:
-
-* Writing Java code
-* Editing files
-* Managing the project
-* Opening the terminal
-
-WSL is used as the Linux environment where Hadoop is installed and executed.
-
-Therefore, when VS Code is connected to WSL, the Hadoop commands are the same as the commands used directly in the WSL terminal.
-
----
-
-# Windows PowerShell
-
-If Hadoop is installed only inside WSL, Hadoop commands should not be executed directly from Windows PowerShell.
-
-Enter WSL first:
-
-```powershell
-wsl
-```
-
-Then:
-
-```bash
-cd ~/hadoop-project/MovieRecommendationSystem
-```
-
-Build:
-
-```bash
-./scripts/build.sh
-```
-
-Run:
-
-```bash
-./scripts/run.sh
-```
+These files contain the actual results generated by the current implementation.
 
 ---
 
@@ -569,65 +621,75 @@ Remove it before running Job 1 again:
 hdfs dfs -rm -r -f /user/pingili_devika/movielens/output_analysis
 ```
 
-Similarly, remove Job 2 output before rerunning:
+Similarly, remove the Job 2 output before rerunning:
 
 ```bash
-hdfs dfs -rm -r -f /user/pingili_devika/movielens/output_recommendations
+hdfs dfs -rm -r -f /user/pingili_devika/movielens/output_stats
 ```
 
-The `run.sh` script performs these operations automatically.
+The `run.sh` script handles the output directories when the complete workflow is executed.
 
 ---
 
-# Useful Commands
+# Useful Hadoop Commands
 
-Check HDFS root:
+## Check HDFS root
 
 ```bash
 hdfs dfs -ls /
 ```
 
-Check project directory:
+## Check project HDFS directory
 
 ```bash
 hdfs dfs -ls /user/pingili_devika/movielens
 ```
 
-Check Job 1 output:
+## Check Job 1 output
 
 ```bash
-hdfs dfs -ls /user/pingili_devika/movielens/output_analysis
+hdfs dfs -ls \
+/user/pingili_devika/movielens/output_analysis
 ```
 
-Check Job 2 output:
+## Check Job 2 output
 
 ```bash
-hdfs dfs -ls /user/pingili_devika/movielens/output_recommendations
+hdfs dfs -ls \
+/user/pingili_devika/movielens/output_stats
 ```
 
-Read final results:
+## Read Job 1 results
 
 ```bash
-hdfs dfs -cat /user/pingili_devika/movielens/output_recommendations/part-r-00000
+hdfs dfs -cat \
+/user/pingili_devika/movielens/output_analysis/part-r-00000
+```
+
+## Read Job 2 results
+
+```bash
+hdfs dfs -cat \
+/user/pingili_devika/movielens/output_stats/part-r-00000
 ```
 
 ---
 
 # GitHub Notes
 
-The complete MovieLens dataset should not be uploaded to GitHub because of its large size.
-
-Generated Hadoop output should also not be uploaded.
+The complete MovieLens `ratings.csv` dataset is not uploaded to GitHub because of its large file size.
 
 The repository contains:
 
 * Java source code
+* Dataset documentation
 * Build script
 * Run script
-* README files
+* Configuration documentation
+* Sample MapReduce outputs
 * Project documentation
 
-The dataset remains in HDFS.
+The complete dataset remains in HDFS.
 
 ---
 
@@ -644,6 +706,7 @@ This project demonstrates:
 * Shuffle and Sort
 * Large-scale data processing
 * Movie rating aggregation
+* Rating count calculation
 * Average rating calculation
 * Recommendation filtering
 
@@ -651,8 +714,17 @@ This project demonstrates:
 
 # Conclusion
 
-The Movie Recommendation System uses two Hadoop MapReduce jobs to process movie ratings.
+The Movie Recommendation System uses two Hadoop MapReduce jobs to process the MovieLens 32M ratings dataset.
 
-`MovieRatingAnalysis` aggregates ratings for each movie, while `MovieRatingStatistics` calculates average ratings and filters movies based on rating quality and rating count.
+`MovieRatingAnalysis` groups movie ratings and calculates the rating count and rating sum for each movie.
 
-The project runs on a single computer using Hadoop inside WSL and can be developed and executed through Visual Studio Code.
+`MovieRatingStatistics` uses these results to calculate the average rating and filters movies using the following criteria:
+
+```text
+Rating Count >= 100
+Average Rating >= 4.0
+```
+
+The final output provides movie IDs along with their rating counts and average ratings.
+
+The project runs on a single computer using **Apache Hadoop inside WSL Ubuntu**.
